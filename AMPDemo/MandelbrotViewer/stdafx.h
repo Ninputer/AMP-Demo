@@ -51,3 +51,8 @@
 #include "WindowFactory.h"
 #include "Direct2DUtility.h"
 #include "AnimationUtility.h"
+
+#ifndef HINST_THISCOMPONENT
+extern "C" IMAGE_DOS_HEADER __ImageBase;
+#define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
+#endif
