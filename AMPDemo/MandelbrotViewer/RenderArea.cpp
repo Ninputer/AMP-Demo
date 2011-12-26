@@ -63,5 +63,6 @@ HRESULT RenderAreaMessageHandler::OnKeyDown(unsigned int vKey)
 
 HRESULT RenderAreaMessageHandler::Initialize()
 {
+	MessageBox(nullptr, L"Hello", L"Test", 0);
 	return S_OK;
 }

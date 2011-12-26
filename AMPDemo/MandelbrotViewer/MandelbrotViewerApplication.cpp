@@ -46,18 +46,21 @@ HRESULT MandelbrotViewerApplication::Initialize()
     }
 
 	// Create render area...
-    ComPtr<IWindow> renderAreaWindow;
     if (SUCCEEDED(hr))
     {
-        hr = InitializeRenderArea(&renderAreaWindow);
+        hr = InitializeRenderArea();
     }
 
-	
+	if (SUCCEEDED(hr))
+    {
+        // Update main window postition based on height of the ribbon
+        hr = UpdateRenderAreaPosition(applicationWindow, m_renderAreaWindow);
+    }
 
 	return hr;
 }
 
-HRESULT MandelbrotViewerApplication::InitializeRenderArea(IWindow** window)
+HRESULT MandelbrotViewerApplication::InitializeRenderArea()
 {
 	using namespace Hilo::Direct2DHelpers;
 
@@ -83,7 +86,6 @@ HRESULT MandelbrotViewerApplication::InitializeRenderArea(IWindow** window)
 		hr = GetWindowFactory(&windowFactory);
 	}
 
-	ComPtr<IWindow> renderArea;
 	if (SUCCEEDED(hr))
     {
 		hr = windowFactory->Create(
@@ -91,18 +93,43 @@ HRESULT MandelbrotViewerApplication::InitializeRenderArea(IWindow** window)
 			size,
 			renderAreaMessageHandler,
 			applicationWindow,
-			&renderArea);
+			&m_renderAreaWindow);
 	}
 
 	if (SUCCEEDED(hr))
     {
-		hr = renderArea->SetMessageHandler(renderAreaMessageHandler);
-	}
-
-	if (SUCCEEDED(hr))
-	{
-		hr = AssignToOutputPointer(window, renderArea);
+		hr = m_renderAreaWindow->SetMessageHandler(renderAreaMessageHandler);
 	}
 
 	return hr;
+}
+
+HRESULT MandelbrotViewerApplication::UpdateRenderAreaPosition(IWindow* mainWindow, IWindow* childWindow)
+{
+    RECT rect;
+    HRESULT hr = mainWindow->GetClientRect(&rect);
+
+    if (SUCCEEDED(hr))
+    {
+        hr = childWindow->SetRect(rect);
+    }
+
+    return hr;
+}
+
+HRESULT MandelbrotViewerApplication::OnSize(unsigned int width, unsigned int height)
+{
+	if (!m_renderAreaWindow)
+    {
+        return S_OK;
+    }
+
+    ComPtr<IWindow> mainWindow;
+    HRESULT hr = GetMainWindow(&mainWindow);
+    if (SUCCEEDED(hr))
+    {
+        hr = UpdateRenderAreaPosition(mainWindow, m_renderAreaWindow);
+    }
+
+    return hr;
 }
