@@ -15,6 +15,7 @@ protected:
 	ComPtr<IWindow> m_renderAreaWindow;
 
 	HRESULT OnSize(unsigned int width, unsigned int height);
+	HRESULT OnMouseWheel(D2D1_POINT_2F mousePosition, short delta, int keys);
 
 public:
 	MandelbrotViewerApplication(void);

@@ -51,30 +51,30 @@ unsigned int set_hsb (float hue, float saturate, float bright) restrict (direct3
 void generate_mandelbrot(
 	array_view<unsigned int, 2> result,
 	unsigned int max_iter,
-    float real_min,
-    float imag_min,
-    float real_max,
-    float imag_max )
+    fp_t real_min,
+    fp_t imag_min,
+    fp_t real_max,
+    fp_t imag_max )
 {
 	int width = result.extent.get_x();
 	int height = result.extent.get_y();
 
+	fp_t scale_real = (real_max - real_min) / width;
+	fp_t scale_imag = (imag_max - imag_min) / height;
+
 	parallel_for_each(result.grid, [=](index<2> i) restrict(direct3d)
 	{
 		int gx = i.get_x();
-		int gy = i.get_y();
+		int gy = i.get_y();		
 
-		float scale_real = (real_max - real_min) / width;
-		float scale_imag = (imag_max - imag_min) / height;
+		fp_t cx = real_min + gx * scale_real;
+		fp_t cy = imag_min + (height - gy) * scale_imag;
 
-		float cx = real_min + gx * scale_real;
-		float cy = imag_min + (height - gy) * scale_imag;
+		fp_t zx = _F(0.0);
+		fp_t zy = _F(0.0);
 
-		float zx = 0.0f;
-		float zy = 0.0f;
-
-		float temp;
-		float length_sqr;
+		fp_t temp;
+		fp_t length_sqr;
 
 		unsigned int count = 0;
 		do
@@ -87,11 +87,12 @@ void generate_mandelbrot(
 
 			length_sqr = zx * zx + zy * zy;
 		}
-		while((length_sqr < 4.0f) && (count < max_iter));
+		while((length_sqr < _F(4.0)) && (count < max_iter));
     
-		float h = sqrt((float)count / max_iter);
-		//float l = clamp((float)max_iter - count, 0, 1);
+		//float h = sqrt((float)count / max_iter);
+		float h = (float)count * 0.001953125f;
+		h = 1.8f * fabs(0.5f - h + floor(h)) + 0.1f;
 
-		result[i] = set_hsb(h, 0.7f, (1.0f - h * h / 1.2f));
+		result[i] = set_hsb(h, 0.7f, (1.0f - h * h * 0.833333f));
 	});
 }

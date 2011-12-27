@@ -4,7 +4,13 @@
 #include "d3d11.h"
 #include "dxgi.h"
 
-RenderAreaMessageHandler::RenderAreaMessageHandler(void)
+RenderAreaMessageHandler::RenderAreaMessageHandler(void) 
+: m_centerx(0.0), 
+m_centery(0.0), 
+m_lastcenterx(0.0), 
+m_lastcentery(0.0), 
+m_scale(0.5), 
+m_mousepressed(false)
 {
 }
 
@@ -59,44 +65,64 @@ HRESULT RenderAreaMessageHandler::OnRender()
 {
 	using namespace Concurrency;
 
-	double real_center = -0.746826546356156;
-    double imag_center = 0.113746476309378;
-    double scale = 1000;
+	ComPtr<IWindow> window;
+	
+    HRESULT hr = GetWindow(&window);
 
-	double d = 1 / scale;
+	RECT rect;
+	if (SUCCEEDED(hr))
+	{
+		hr = window->GetClientRect(&rect);
+	}
 
-	const unsigned int width = 640;
-	const unsigned int height = 640;
-	std::vector<unsigned int> data(width * height);
+	if (SUCCEEDED(hr))
+	{
+		double d = 1 / m_scale;
 
-	array_view<unsigned int, 2> arrayview(width, height, data);
+		const unsigned int width = rect.right;
+		const unsigned int height = rect.bottom;
 
-	generate_mandelbrot(arrayview, 1024, real_center - d, imag_center - d, real_center + d, imag_center + d);
+		double dx = d * width / 640;
+		double dy = d * height / 640;
 
-	arrayview.synchronize();
+		std::vector<unsigned int> data(width * height);
 
-	ComPtr<ID2D1Bitmap> bitmap;
-	HRESULT hr = m_renderTarget->CreateBitmap(
-		D2D1::SizeU(width, height),
-		static_cast<void*>(data.data()),
-		width * sizeof(unsigned int),
-		D2D1::BitmapProperties(
-			D2D1::PixelFormat(
-				DXGI_FORMAT_B8G8R8A8_UNORM,
-				D2D1_ALPHA_MODE_IGNORE
-			)),
-		&bitmap);
+		array_view<unsigned int, 2> arrayview(height, width, data);
 
+		generate_mandelbrot(
+			arrayview, 
+			1024, 
+			static_cast<fp_t>(m_centerx - dx), 
+			static_cast<fp_t>(m_centery - dy), 
+			static_cast<fp_t>(m_centerx + dx), 
+			static_cast<fp_t>(m_centery + dy));
 
+		arrayview.synchronize();
 
-	m_renderTarget->BeginDraw();
-	m_renderTarget->Clear();
+		ComPtr<ID2D1Bitmap> bitmap;
+		hr = m_renderTarget->CreateBitmap(
+			D2D1::SizeU(width, height),
+			static_cast<void*>(data.data()),
+			width * 4,
+			D2D1::BitmapProperties(
+				D2D1::PixelFormat(
+					DXGI_FORMAT_B8G8R8A8_UNORM,
+					D2D1_ALPHA_MODE_IGNORE
+				)),
+			&bitmap);
 
-	m_renderTarget->DrawBitmap(bitmap, 
-		D2D1::RectF(0.0, 0.0, static_cast<float>(width), static_cast<float>(height)));
+		if (SUCCEEDED(hr))
+		{
+			m_renderTarget->BeginDraw();
+			m_renderTarget->Clear();
 
-	m_renderTarget->EndDraw();
-	return S_OK;
+			m_renderTarget->DrawBitmap(bitmap, 
+				D2D1::RectF(0.0, 0.0, static_cast<float>(width), static_cast<float>(height)));
+
+			m_renderTarget->EndDraw();
+		}
+	}
+	return hr;
 }
 
 /*
@@ -185,17 +211,65 @@ HRESULT RenderAreaMessageHandler::OnSize(unsigned int width, unsigned int height
 
 HRESULT RenderAreaMessageHandler::OnLeftMouseButtonDown(D2D1_POINT_2F mousePosition)
 {
-	return S_OK;
+	ComPtr<IWindow> window;
+	HRESULT hr = GetWindow(&window);
+
+	if (SUCCEEDED(hr))
+	{
+		hr = window->SetCapture();
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		m_mousepressed = true;
+		m_mousepressedpos = mousePosition;
+
+		m_lastcenterx = m_centerx;
+		m_lastcentery = m_centery;
+	}
+
+	return hr;
 }
 
 HRESULT RenderAreaMessageHandler::OnLeftMouseButtonUp(D2D1_POINT_2F mousePosition)
 {
-	return S_OK;
+	HRESULT hr = S_OK;
+
+	if (m_mousepressed)
+	{
+		ComPtr<IWindow> window;
+		hr = GetWindow(&window);
+
+
+		hr = window->ReleaseCapture();
+
+		m_mousepressed = false;
+		
+	}
+
+	return hr;
 }
 
 HRESULT RenderAreaMessageHandler::OnMouseMove(D2D1_POINT_2F mousePosition)
 {
-	return S_OK;
+	HRESULT hr = S_OK;
+	if (m_mousepressed)
+	{
+		double dx = mousePosition.x - m_mousepressedpos.x;
+		double dy = -mousePosition.y + m_mousepressedpos.y;
+
+		m_centerx = m_lastcenterx - dx / (320 * m_scale);
+		m_centery = m_lastcentery - dy / (320 * m_scale);
+
+		ComPtr<IWindow> window;
+		hr = GetWindow(&window);
+
+		if (SUCCEEDED(hr))
+		{
+			hr = window->RedrawWindow();
+		}
+	}
+	return hr;
 }
 
 HRESULT RenderAreaMessageHandler::OnMouseEnter(D2D1_POINT_2F mousePosition)
@@ -205,7 +279,24 @@ HRESULT RenderAreaMessageHandler::OnMouseEnter(D2D1_POINT_2F mousePosition)
 
 HRESULT RenderAreaMessageHandler::OnMouseWheel(D2D1_POINT_2F mousePosition, short delta, int keys)
 {
-	return S_OK;
+	if (delta > 0)
+    {
+        m_scale *= 1.2;
+    }
+    else if (delta < 0)
+    {
+        m_scale /= 1.2;
+    }
+
+	ComPtr<IWindow> window;
+	HRESULT hr = GetWindow(&window);
+
+	if (SUCCEEDED(hr))
+	{
+		hr = window->RedrawWindow();
+	}
+
+	return hr;
 }
 
 HRESULT RenderAreaMessageHandler::OnKeyDown(unsigned int vKey)

@@ -39,5 +39,13 @@ protected:
 private:
 	ComPtr<ID2D1Factory> m_d2dFactory;
     ComPtr<ID2D1HwndRenderTarget> m_renderTarget;
+
+	double m_centerx;
+	double m_centery;
+	double m_lastcenterx;
+	double m_lastcentery;
+	double m_scale;
+	bool m_mousepressed;
+	D2D1_POINT_2F m_mousepressedpos;
 };
 

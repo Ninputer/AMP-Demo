@@ -291,6 +291,12 @@ HRESULT Window::SetCapture()
     return S_OK;
 }
 
+HRESULT Window::ReleaseCapture() 
+{
+    ::ReleaseCapture();
+    return S_OK;
+}
+
 HRESULT Window::IsMouseCaptured(bool* isMouseCaptured)
 {
     assert(isMouseCaptured);

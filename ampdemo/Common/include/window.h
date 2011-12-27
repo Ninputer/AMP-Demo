@@ -63,6 +63,7 @@ namespace Hilo
             HRESULT __stdcall SetMessageHandler(__in IWindowMessageHandler* messageHandler);
             HRESULT __stdcall GetClientRect(__out RECT* clientRect);
             HRESULT __stdcall SetCapture();
+			HRESULT __stdcall ReleaseCapture();
             HRESULT __stdcall SetFocus();
             HRESULT __stdcall IsMouseCaptured(__out bool* isMouseCaptured);
         };

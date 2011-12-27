@@ -133,3 +133,8 @@ HRESULT MandelbrotViewerApplication::OnSize(unsigned int width, unsigned int hei
 
     return hr;
 }
+
+HRESULT MandelbrotViewerApplication::OnMouseWheel(D2D1_POINT_2F mousePosition, short delta, int keys)
+{
+	return S_FALSE;
+}
