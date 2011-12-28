@@ -89,9 +89,9 @@ void generate_mandelbrot(
 		}
 		while((length_sqr < _F(4.0)) && (count < max_iter));
     
-		//float h = sqrt((float)count / max_iter);
-		float h = (float)count * 0.001953125f;
-		h = 1.8f * fabs(0.5f - h + floor(h)) + 0.1f;
+		float h = sqrt(sin(count * 0.003067962f));
+		//float h = (float)count / 1024; //* 0.001953125f;
+		//h = 1.8f * fabs(0.5f - h + floor(h)) + 0.1f;
 
 		result[i] = set_hsb(h, 0.7f, (1.0f - h * h * 0.833333f));
 	});
