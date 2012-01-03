@@ -3,50 +3,7 @@
 
 using namespace Concurrency;
 
-unsigned int set_hsb (float hue, float saturate, float bright) restrict (direct3d)
-{   
-    // when I wrote this, openGL only liked colors specified by RGB values. The   
-    // mandelbrot routine generated an HSB color, so I wrote this routine to do   
-    // the conversion. It sure isn't perfect, but it does a respectable job.   
-    //   
-    // I expect that part of this work (but the final openGL call) could be   
-    // pushed back with the mandelbrot color generator for more speedup.   
-    //   
-    float red, green, blue;      
-    float h = (hue * 256) / 60;  
-    float p = bright * (1 - saturate);  
-    float q = bright * (1 - saturate * (h - (int)h));  
-    float t = bright * (1 - saturate * (1 - (h - (int)h)));  
-    
-    switch ((int)h) {  
-    case 0:   
-        red = bright,  green = t,  blue = p;  
-        break;  
-    case 1:  
-        red = q,  green = bright,  blue = p;  
-        break;  
-    case 2:  
-        red = p,  green = bright,  blue = t;  
-        break;  
-    case 3:  
-        red = p,  green = q,  blue = bright;  
-        break;  
-    case 4:  
-        red = t,  green = p,  blue = bright;  
-        break;  
-    case 5:  
-    case 6:  
-        red = bright,  green = p,  blue = q;  
-        break;  
-    }  
-
-    unsigned int ired, igreen, iblue;
-    ired = (unsigned int)(red * 255.0f);
-    igreen = (unsigned int)(green * 255.0f);
-    iblue = (unsigned int)(blue * 255.0f);
-    
-    return 0xff000000 | (ired << 16) | (igreen << 8) | iblue;  
- }
+unsigned int set_hsb (float hue, float saturate, float bright) restrict (direct3d);
 
 void generate_mandelbrot(
 	array_view<unsigned int, 2> result,
@@ -89,15 +46,53 @@ void generate_mandelbrot(
 		}
 		while((length_sqr < _F(4.0)) && (count < max_iter));
     
-		float normalc = count / 512.0f;
-		float h = sqrt(1.0f - 1.0f / (normalc + 1.0f));
+		//faster using multiplication than division
+		float n = count * 0.0078125f; // n = count / 128.0f; 
 		
-		//float h = sqrt(fabs(sin(count * 0.003067962f)));;
-		//float h = (float)count / 1024; //* 0.001953125f;
-		//h = 1.8f * fabs(0.5f - h + floor(h)) + 0.1f;
-		
-		float bfactor = count >= max_iter ? 0.0f : 1.0f;
+		float h = 1.0f - 2.0f * fabs(0.5f - n + floor(n));
 
-		result[i] = set_hsb(h, 0.7f, (1.0f - h * h * 0.833333f) * bfactor);
+		//turn points at maximum iteration to black
+		float bfactor = direct3d::clamp((float)(max_iter - count), 0.0f, 1.0f);
+
+		result[i] = set_hsb(h, 0.7f, (1.0f - h * h * 0.83f) * bfactor);
 	});
 }
+
+unsigned int set_hsb (float hue, float saturate, float bright) restrict (direct3d)
+{   
+
+    float red, green, blue;      
+    float h = (hue * 256) / 60;  
+    float p = bright * (1 - saturate);  
+    float q = bright * (1 - saturate * (h - (int)h));  
+    float t = bright * (1 - saturate * (1 - (h - (int)h)));  
+    
+    switch ((int)h) {  
+    case 0:   
+        red = bright,  green = t,  blue = p;  
+        break;  
+    case 1:  
+        red = q,  green = bright,  blue = p;  
+        break;  
+    case 2:  
+        red = p,  green = bright,  blue = t;  
+        break;  
+    case 3:  
+        red = p,  green = q,  blue = bright;  
+        break;  
+    case 4:  
+        red = t,  green = p,  blue = bright;  
+        break;  
+    case 5:  
+    case 6:  
+        red = bright,  green = p,  blue = q;  
+        break;  
+    }  
+
+    unsigned int ired, igreen, iblue;
+    ired = (unsigned int)(red * 255.0f);
+    igreen = (unsigned int)(green * 255.0f);
+    iblue = (unsigned int)(blue * 255.0f);
+    
+    return 0xff000000 | (ired << 16) | (igreen << 8) | iblue;  
+ }

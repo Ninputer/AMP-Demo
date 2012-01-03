@@ -1,6 +1,7 @@
 
 #include "amp.h"
 
+//#define FP64
 
 #if defined FP64
 #define _F(x) x

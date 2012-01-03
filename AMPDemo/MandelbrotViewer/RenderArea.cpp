@@ -89,9 +89,11 @@ HRESULT RenderAreaMessageHandler::OnRender()
 
 		array_view<unsigned int, 2> arrayview(height, width, data);
 
+		static const unsigned int max_iter = 8192;
+
 		generate_mandelbrot(
 			arrayview, 
-			1024, 
+			std::min(static_cast<unsigned int>(64 * log(1 + m_scale) * 4), max_iter), 
 			static_cast<fp_t>(m_centerx - dx), 
 			static_cast<fp_t>(m_centery - dy), 
 			static_cast<fp_t>(m_centerx + dx), 
