@@ -5,12 +5,22 @@
 #include "dxgi.h"
 
 RenderAreaMessageHandler::RenderAreaMessageHandler(void) 
-: m_centerx(0.0), 
+: 
+m_hNextSkeletonEvent(nullptr),
+m_pDepthStreamHandle(nullptr),
+m_pVideoStreamHandle(nullptr),
+m_hNextDepthFrameEvent(nullptr),
+m_hNextColorFrameEvent(nullptr),
+m_centerx(0.0), 
 m_centery(0.0), 
 m_lastcenterx(0.0), 
 m_lastcentery(0.0), 
 m_scale(0.5), 
-m_mousepressed(false)
+m_mousepressed(false),
+m_left_stretched(false),
+m_right_stretched(false),
+m_lastscale(0.5),
+m_resizing(false)
 {
 }
 
@@ -53,8 +63,28 @@ HRESULT RenderAreaMessageHandler::OnCreate()
 			&m_renderTarget);
 	}
 
+	if (SUCCEEDED(hr))
+	{
+		hr = Nui_Init();
+	}
+
 	return hr;
 }
+
+HRESULT RenderAreaMessageHandler::OnDestroy()
+{
+	SetEvent(m_hEvNuiProcessStop);
+
+    tasks.wait();
+
+    if (m_pNuiSensor != nullptr)
+    {
+        m_pNuiSensor->NuiShutdown();
+    }
+
+    return S_OK;
+}
+
 
 HRESULT RenderAreaMessageHandler::OnEraseBackground()
 {
@@ -313,4 +343,252 @@ HRESULT RenderAreaMessageHandler::Initialize()
 	HRESULT hr = Direct2DUtility::GetD2DFactory(&m_d2dFactory);
 
 	return hr;
+}
+
+HRESULT RenderAreaMessageHandler::Nui_Init()
+{
+	ComPtr<IWindow> window;
+	HRESULT hr = GetWindow(&window);
+
+	HWND hWnd;
+	if (SUCCEEDED(hr))
+	{
+		hr = window->GetWindowHandle(&hWnd);
+	}
+
+	m_hNextDepthFrameEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    m_hNextColorFrameEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+    m_hNextSkeletonEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+
+    hr = NuiCreateSensorByIndex(0, &m_pNuiSensor);
+
+	if (FAILED(hr))
+    {
+        //kinect not usable
+		return S_FALSE;
+    }
+
+    DWORD nuiFlags = NUI_INITIALIZE_FLAG_USES_DEPTH_AND_PLAYER_INDEX | NUI_INITIALIZE_FLAG_USES_SKELETON |  NUI_INITIALIZE_FLAG_USES_COLOR;
+    hr = m_pNuiSensor->NuiInitialize( nuiFlags );
+
+    //BSTR id = m_pNuiSensor->NuiDeviceConnectionId();
+  
+    if (FAILED(hr))
+    {
+        //kinect not usable
+		return S_FALSE;
+    }
+
+    hr = m_pNuiSensor->NuiSkeletonTrackingEnable(m_hNextSkeletonEvent, 0);
+    
+    if (SUCCEEDED(hr))
+    {
+        hr = m_pNuiSensor->NuiImageStreamOpen(
+            NUI_IMAGE_TYPE_COLOR,
+            NUI_IMAGE_RESOLUTION_640x480,
+            0,
+            2,
+            m_hNextColorFrameEvent,
+            &m_pVideoStreamHandle );
+    }
+
+    if (SUCCEEDED(hr))
+    {
+        hr = m_pNuiSensor->NuiImageStreamOpen(
+            HasSkeletalEngine(m_pNuiSensor) ? NUI_IMAGE_TYPE_DEPTH_AND_PLAYER_INDEX : NUI_IMAGE_TYPE_DEPTH,
+            NUI_IMAGE_RESOLUTION_320x240,
+            0,
+            2,
+            m_hNextDepthFrameEvent,
+            &m_pDepthStreamHandle );
+    }
+
+    m_hEvNuiProcessStop = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+
+    tasks.run([this]
+    {
+        NUI_IMAGE_FRAME imageFrame;
+        HANDLE hEvents[4] = { m_hEvNuiProcessStop, m_hNextDepthFrameEvent, m_hNextColorFrameEvent, m_hNextSkeletonEvent };
+        int    nEventIdx;
+
+        bool continueProcessing = true;
+        while ( continueProcessing )
+        {
+            // Wait for any of the events to be signalled
+            nEventIdx = WaitForMultipleObjects(4, hEvents, FALSE, 33);
+
+            // Process signal events
+            switch ( nEventIdx )
+            {
+                case WAIT_TIMEOUT:
+                    continue;
+
+                // If the stop event, stop looping and exit
+                case WAIT_OBJECT_0:
+                    continueProcessing = false;
+                    continue;
+
+                case WAIT_OBJECT_0 + 1:
+                    m_pNuiSensor->NuiImageStreamGetNextFrame(
+                        m_pDepthStreamHandle,
+                        0,
+                        &imageFrame );
+                    m_pNuiSensor->NuiImageStreamReleaseFrame(m_pDepthStreamHandle, &imageFrame);
+                    break;
+
+                case WAIT_OBJECT_0 + 2:
+                    m_pNuiSensor->NuiImageStreamGetNextFrame(
+                        m_pVideoStreamHandle,
+                        0,
+                        &imageFrame );
+                    m_pNuiSensor->NuiImageStreamReleaseFrame(m_pVideoStreamHandle, &imageFrame);
+                    break;
+
+                case WAIT_OBJECT_0 + 3:
+                    Nui_GotSkeletonAlert( );
+                    break;
+            }
+        }
+    });
+
+	return hr;
+}
+
+void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
+{
+    NUI_SKELETON_FRAME SkeletonFrame = {0};
+
+    bool bFoundSkeleton = false;
+    int skeletonIndex = -1;
+
+    if (SUCCEEDED(m_pNuiSensor->NuiSkeletonGetNextFrame( 0, &SkeletonFrame )))
+    {
+        for ( int i = 0 ; i < NUI_SKELETON_COUNT ; i++ )
+        {
+            if(SkeletonFrame.SkeletonData[i].eTrackingState == NUI_SKELETON_TRACKED ||
+                (SkeletonFrame.SkeletonData[i].eTrackingState == NUI_SKELETON_POSITION_ONLY))
+            {
+                skeletonIndex = i;
+                bFoundSkeleton = true;
+
+                break;
+            }
+        }
+    }
+
+    // no skeletons!
+    if( !bFoundSkeleton )
+    {
+        return;
+    }
+
+    // smooth out the skeleton data
+    HRESULT hr = m_pNuiSensor->NuiTransformSmooth(&SkeletonFrame,NULL);
+    if (FAILED(hr))
+    {
+        return;
+    }
+
+    //use only the first person found
+    NUI_SKELETON_DATA& skeleton = SkeletonFrame.SkeletonData[skeletonIndex];
+    Vector4 *joints = skeleton.SkeletonPositions;
+
+    Vector4 leftHand = joints[NUI_SKELETON_POSITION_HAND_LEFT];
+    Vector4 rightHand = joints[NUI_SKELETON_POSITION_HAND_RIGHT];
+    Vector4 soulderCenter = joints[NUI_SKELETON_POSITION_SHOULDER_CENTER];
+
+    //determin the arm is stretched
+
+    static const float stretched_dist = 0.45f;
+
+    bool left_stretched = soulderCenter.z - leftHand.z >= stretched_dist;
+    bool right_stretched = soulderCenter.z - rightHand.z >= stretched_dist;
+
+    ComPtr<IWindow> window;
+
+    hr = GetWindow(&window);
+
+    if (left_stretched != m_left_stretched)
+    {
+        m_left_stretched = left_stretched;
+
+        if (left_stretched)
+        {
+            m_lefthandpos = D2D1::Point2F(leftHand.x, leftHand.y);
+
+            m_lastcenterx = m_centerx;
+            m_lastcentery = m_centery;
+        }
+        else
+        {
+            if (m_resizing)
+            {
+                m_resizing = false;
+                m_lastscale = m_scale;
+            }
+        }
+    }
+    
+    if(right_stretched != m_right_stretched)
+    {
+        m_right_stretched = right_stretched;
+
+        if (right_stretched)
+        {
+            m_righthandpos = D2D1::Point2F(rightHand.x, rightHand.y);
+
+            m_lastcenterx = m_centerx;
+            m_lastcentery = m_centery;
+        }
+        else
+        {
+            if (m_resizing)
+            {
+                m_resizing = false;
+                m_lastscale = m_scale;
+            }
+        }
+    }
+
+    m_resizing = left_stretched && right_stretched;
+
+    if(m_left_stretched ^ m_right_stretched)
+    {
+        //handle single hand movemehnts
+        double dx, dy;
+        if (m_left_stretched)
+        {
+            dx = m_lefthandpos.x - leftHand.x;
+            dy = m_lefthandpos.y - leftHand.y;       
+        }
+        else if(m_right_stretched)
+        {
+            dx = m_righthandpos.x - rightHand.x;
+            dy = m_righthandpos.y - rightHand.y;
+        }
+
+        m_centerx = m_lastcenterx + dx * 5.0 / m_scale;
+        m_centery = m_lastcentery + dy * 6.0 / m_scale;
+
+        window->RedrawWindow();
+    }
+    else if(m_resizing)
+    {
+        //handle two hands resizing
+
+        float cdx = rightHand.x - leftHand.x;
+        float cdy = rightHand.y - leftHand.y;
+
+        float pdx = m_righthandpos.x - m_lefthandpos.x;
+        float pdy = m_righthandpos.y = m_lefthandpos.y;
+
+        float scale_diff = sqrt((cdx * cdx + cdy * cdy) / (pdx * pdx + pdy * pdy));
+
+		/*scale_diff = std::max(0.2f, scale_diff);
+		scale_diff = std::min(5.0f, scale_diff);*/
+
+        m_scale = m_lastscale * scale_diff;
+
+        window->RedrawWindow();
+    }
 }

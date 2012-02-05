@@ -4,6 +4,8 @@
 #include "WindowLayout.h"
 #include "WindowLayoutChildInterface.h"
 #include "WindowMessageHandlerImpl.h"
+#include "NuiApi.h"
+#include <ppl.h>
 
 class RenderAreaMessageHandler : 
 				   public IInitializable,
@@ -19,6 +21,7 @@ protected:
 
     // WindowMessageHandler Events
     HRESULT OnCreate();
+	HRESULT OnDestroy();
     HRESULT OnEraseBackground();
     HRESULT OnRender();
     HRESULT OnSize(unsigned int width, unsigned int height);
@@ -39,7 +42,17 @@ protected:
 private:
 	ComPtr<ID2D1Factory> m_d2dFactory;
     ComPtr<ID2D1HwndRenderTarget> m_renderTarget;
+	HANDLE m_pDepthStreamHandle;
+    HANDLE m_pVideoStreamHandle;
 
+    HANDLE m_hNextSkeletonEvent;
+    HANDLE m_hNextDepthFrameEvent;
+    HANDLE m_hNextColorFrameEvent;
+    HANDLE m_hEvNuiProcessStop;
+
+    Concurrency::task_group tasks;
+
+	//mouse control
 	double m_centerx;
 	double m_centery;
 	double m_lastcenterx;
@@ -47,5 +60,18 @@ private:
 	double m_scale;
 	bool m_mousepressed;
 	D2D1_POINT_2F m_mousepressedpos;
+
+	//kinect control
+	ComPtr<INuiSensor> m_pNuiSensor;
+
+    bool m_left_stretched;
+    bool m_right_stretched;
+    D2D1_POINT_2F m_lefthandpos;
+    D2D1_POINT_2F m_righthandpos;
+    bool m_resizing;
+    double m_lastscale;
+
+	HRESULT Nui_Init();
+    void Nui_GotSkeletonAlert();
 };
 
