@@ -519,15 +519,8 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
             m_lastcenterx = m_centerx;
             m_lastcentery = m_centery;
         }
-        else
-        {
-            if (m_resizing)
-            {
-                m_resizing = false;
-                m_lastscale = m_scale;
-            }
-        }
     }
+    
     
     if(right_stretched != m_right_stretched)
     {
@@ -540,17 +533,24 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
             m_lastcenterx = m_centerx;
             m_lastcentery = m_centery;
         }
-        else
-        {
-            if (m_resizing)
-            {
-                m_resizing = false;
-                m_lastscale = m_scale;
-            }
-        }
     }
 
-    m_resizing = left_stretched && right_stretched;
+    bool isresizing = left_stretched && right_stretched && (leftHand.z - rightHand.z < 0.1f);
+
+    if (m_resizing != isresizing)
+    {
+        m_resizing = isresizing;
+
+        if (isresizing)
+        {
+            m_lefthandpos = D2D1::Point2F(leftHand.x, leftHand.y);
+            m_righthandpos = D2D1::Point2F(rightHand.x, rightHand.y);
+        }
+        else
+        {
+            m_lastscale = m_scale;
+        }
+    }
 
     if(m_left_stretched ^ m_right_stretched)
     {
