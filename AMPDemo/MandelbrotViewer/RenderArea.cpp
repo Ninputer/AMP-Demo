@@ -499,7 +499,7 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
 
     //determin the arm is stretched
 
-    static const float stretched_dist = 0.45f;
+    static const float stretched_dist = 0.4f;
 
     bool left_stretched = soulderCenter.z - leftHand.z >= stretched_dist;
     bool right_stretched = soulderCenter.z - rightHand.z >= stretched_dist;
@@ -539,15 +539,22 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
 
     if (m_resizing != isresizing)
     {
-        m_resizing = isresizing;
-
         if (isresizing)
         {
             m_lefthandpos = D2D1::Point2F(leftHand.x, leftHand.y);
             m_righthandpos = D2D1::Point2F(rightHand.x, rightHand.y);
+            m_resizing = isresizing;
         }
         else
         {
+            if (left_stretched || right_stretched)
+            {
+                return;
+            }
+            else
+            {
+                m_resizing = false;
+            }
             m_lastscale = m_scale;
         }
     }
@@ -584,8 +591,7 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
 
         float scale_diff = sqrt((cdx * cdx + cdy * cdy) / (pdx * pdx + pdy * pdy));
 
-		/*scale_diff = std::max(0.2f, scale_diff);
-		scale_diff = std::min(5.0f, scale_diff);*/
+		scale_diff = std::max(0.1f, scale_diff);
 
         m_scale = m_lastscale * scale_diff;
 
