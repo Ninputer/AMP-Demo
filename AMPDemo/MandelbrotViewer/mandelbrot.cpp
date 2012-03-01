@@ -1,9 +1,11 @@
 #include "stdafx.h"
 #include "mandelbrot.h"
+#include "amp_math.h"
 
 using namespace Concurrency;
+using namespace fast_math;
 
-unsigned int set_hsb (float hue, float saturate, float bright) restrict (direct3d);
+unsigned int set_hsb (float hue, float saturate, float bright) restrict (amp);
 
 void generate_mandelbrot(
 	array_view<unsigned int, 2> result,
@@ -13,19 +15,19 @@ void generate_mandelbrot(
     fp_t real_max,
     fp_t imag_max )
 {
-	int width = result.extent.get_x();
-	int height = result.extent.get_y();
+	int width = result.extent[1];
+	int height = result.extent[0];
 
 	fp_t scale_real = (real_max - real_min) / width;
 	fp_t scale_imag = (imag_max - imag_min) / height;
 
-	parallel_for_each(result.grid, [=](index<2> i) restrict(direct3d)
+	parallel_for_each(result.extent, [=](index<2> i) restrict(amp)
 	{
-		int gx = i.get_x();
-		int gy = i.get_y();		
+		int gx = i[1];
+		int gy = i[0];		
 
-		fp_t cx = real_min + gx * scale_real;
-		fp_t cy = imag_min + (height - gy) * scale_imag;
+		fp_t cx = real_min + static_cast<float>(gx) * scale_real;
+		fp_t cy = imag_min + static_cast<float>(height - gy) * scale_imag;
 
 		fp_t zx = _F(0.0);
 		fp_t zy = _F(0.0);
@@ -58,7 +60,7 @@ void generate_mandelbrot(
 	});
 }
 
-unsigned int set_hsb (float hue, float saturate, float bright) restrict (direct3d)
+unsigned int set_hsb (float hue, float saturate, float bright) restrict (amp)
 {   
 
     float red, green, blue;      

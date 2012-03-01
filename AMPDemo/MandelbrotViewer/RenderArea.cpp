@@ -119,7 +119,7 @@ HRESULT RenderAreaMessageHandler::OnRender()
 
         array_view<unsigned int, 2> arrayview(height, width, data);
 
-        static const unsigned int max_iter = 8192;
+        static const unsigned int max_iter = 4096;
 
         generate_mandelbrot(
             arrayview, 
