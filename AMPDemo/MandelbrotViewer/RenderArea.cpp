@@ -5,22 +5,23 @@
 #include "dxgi.h"
 
 RenderAreaMessageHandler::RenderAreaMessageHandler(void) 
-: 
-m_hNextSkeletonEvent(nullptr),
-m_pDepthStreamHandle(nullptr),
-m_pVideoStreamHandle(nullptr),
-m_hNextDepthFrameEvent(nullptr),
-m_hNextColorFrameEvent(nullptr),
-m_centerx(0.0), 
-m_centery(0.0), 
-m_lastcenterx(0.0), 
-m_lastcentery(0.0), 
-m_scale(0.5), 
-m_mousepressed(false),
-m_left_stretched(false),
-m_right_stretched(false),
-m_lastscale(0.5),
-m_resizing(false)
+    : 
+    m_hNextSkeletonEvent(nullptr),
+    m_pDepthStreamHandle(nullptr),
+    m_pVideoStreamHandle(nullptr),
+    m_hNextDepthFrameEvent(nullptr),
+    m_hNextColorFrameEvent(nullptr),
+    m_centerx(0.0), 
+    m_centery(0.0), 
+    m_lastcenterx(0.0), 
+    m_lastcentery(0.0), 
+    m_scale(0.5), 
+    m_mousepressed(false),
+    m_left_stretched(false),
+    m_right_stretched(false),
+    m_lastscale(0.5),
+    m_resizing(false),
+    m_useDouble(false)
 {
 }
 
@@ -40,7 +41,7 @@ HRESULT RenderAreaMessageHandler::OnCreate()
     }
 
     ComPtr<IWindow> window;
-    
+
     HRESULT hr = GetWindow(&window);
 
     HWND hWnd;
@@ -66,6 +67,13 @@ HRESULT RenderAreaMessageHandler::OnCreate()
     if (SUCCEEDED(hr))
     {
         hr = Nui_Init();
+    }
+
+    Concurrency::accelerator default_acc;
+
+    if (default_acc.get_supports_limited_double_precision() || default_acc.get_supports_double_precision())
+    {
+        m_useDouble = true;
     }
 
     return hr;
@@ -96,7 +104,7 @@ HRESULT RenderAreaMessageHandler::OnRender()
     using namespace Concurrency;
 
     ComPtr<IWindow> window;
-    
+
     HRESULT hr = GetWindow(&window);
 
     RECT rect;
@@ -121,13 +129,26 @@ HRESULT RenderAreaMessageHandler::OnRender()
 
         static const unsigned int max_iter = 4096;
 
-        generate_mandelbrot(
-            arrayview, 
-            std::min(static_cast<unsigned int>(64 * log(1 + m_scale) * 4), max_iter), 
-            static_cast<fp_t>(m_centerx - dx), 
-            static_cast<fp_t>(m_centery - dy), 
-            static_cast<fp_t>(m_centerx + dx), 
-            static_cast<fp_t>(m_centery + dy));
+        if (m_useDouble)
+        {
+            generate_mandelbrot<double>(
+                arrayview, 
+                std::min(static_cast<unsigned int>(64 * log(1 + m_scale) * 4), max_iter), 
+                static_cast<double>(m_centerx - dx), 
+                static_cast<double>(m_centery - dy), 
+                static_cast<double>(m_centerx + dx), 
+                static_cast<double>(m_centery + dy));
+        }
+        else
+        {
+            generate_mandelbrot<float>(
+                arrayview, 
+                std::min(static_cast<unsigned int>(64 * log(1 + m_scale) * 4), max_iter), 
+                static_cast<float>(m_centerx - dx), 
+                static_cast<float>(m_centery - dy), 
+                static_cast<float>(m_centerx + dx), 
+                static_cast<float>(m_centery + dy));
+        }
 
         arrayview.synchronize();
 
@@ -137,10 +158,10 @@ HRESULT RenderAreaMessageHandler::OnRender()
             static_cast<void*>(data.data()),
             width * 4,
             D2D1::BitmapProperties(
-                D2D1::PixelFormat(
-                    DXGI_FORMAT_B8G8R8A8_UNORM,
-                    D2D1_ALPHA_MODE_IGNORE
-                )),
+            D2D1::PixelFormat(
+            DXGI_FORMAT_B8G8R8A8_UNORM,
+            D2D1_ALPHA_MODE_IGNORE
+            )),
             &bitmap);
 
         if (SUCCEEDED(hr))
@@ -156,81 +177,6 @@ HRESULT RenderAreaMessageHandler::OnRender()
     }
     return hr;
 }
-
-/*
-    array<unsigned int, 2> a(64, 64);
-
-    parallel_for_each(a.grid, [&a](index<2> i) restrict(direct3d)
-    {
-        a[i] = 0xCCCCCCCC;
-    });
-
-    ComPtr<IUnknown> bufferPtr = direct3d::get_buffer(a);
-
-    ComPtr<ID3D11Buffer> buffer;
-    HRESULT hr = bufferPtr.QueryInterface(&buffer);
-
-    ComPtr<ID3D11Device> device;
-    if (SUCCEEDED(hr))
-    {
-        buffer->GetDevice(&device);
-    }
-
-    static const DXGI_FORMAT format = DXGI_FORMAT_B8G8R8A8_UNORM;
-
-    //Create a texture
-    ComPtr<ID3D11Texture2D> texture;
-    D3D11_TEXTURE2D_DESC tdesc;
-
-    tdesc.Width = 64;
-    tdesc.Height = 64;
-    tdesc.MipLevels = 1;
-    tdesc.ArraySize = 1;
-
-    tdesc.SampleDesc.Count = 1;
-    tdesc.SampleDesc.Quality = 0;
-    tdesc.Usage = D3D11_USAGE_DEFAULT;
-    tdesc.Format = format;    
-    tdesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-    tdesc.CPUAccessFlags = 0;    
-    tdesc.MiscFlags = 0;
-
-    hr = device->CreateTexture2D(
-        &tdesc,
-        nullptr,
-        &texture);
-
-    
-    ComPtr<ID3D11DeviceContext> context;
-    if (SUCCEEDED(hr))
-    {
-        device->GetImmediateContext(&context);
-    }
-
-    context->CopyResource(buffer, texture);
-
-    ComPtr<IDXGISurface> dxgiSurface;
-    hr = texture.QueryInterface(&dxgiSurface);
-
-    ComPtr<ID2D1Bitmap> sharedBitmap;
-
-    if (SUCCEEDED(hr))
-    {
-        D2D1_BITMAP_PROPERTIES bprop;
-        bprop.pixelFormat = D2D1::PixelFormat(
-            format,
-            D2D1_ALPHA_MODE_IGNORE);
-        bprop.dpiX = 0.0f;
-        bprop.dpiY = 0.0f;
-
-        hr = m_renderTarget->CreateSharedBitmap(
-            __uuidof(IDXGISurface),
-            dxgiSurface,
-            &bprop,
-            &sharedBitmap);
-    }
-*/
 
 HRESULT RenderAreaMessageHandler::OnSize(unsigned int width, unsigned int height)
 {
@@ -276,7 +222,7 @@ HRESULT RenderAreaMessageHandler::OnLeftMouseButtonUp(D2D1_POINT_2F mousePositio
         hr = window->ReleaseCapture();
 
         m_mousepressed = false;
-        
+
     }
 
     return hr;
@@ -372,7 +318,7 @@ HRESULT RenderAreaMessageHandler::Nui_Init()
     hr = m_pNuiSensor->NuiInitialize( nuiFlags );
 
     //BSTR id = m_pNuiSensor->NuiDeviceConnectionId();
-  
+
     if (FAILED(hr))
     {
         //kinect not usable
@@ -380,7 +326,7 @@ HRESULT RenderAreaMessageHandler::Nui_Init()
     }
 
     hr = m_pNuiSensor->NuiSkeletonTrackingEnable(m_hNextSkeletonEvent, 0);
-    
+
     if (SUCCEEDED(hr))
     {
         hr = m_pNuiSensor->NuiImageStreamOpen(
@@ -420,33 +366,33 @@ HRESULT RenderAreaMessageHandler::Nui_Init()
             // Process signal events
             switch ( nEventIdx )
             {
-                case WAIT_TIMEOUT:
-                    continue;
+            case WAIT_TIMEOUT:
+                continue;
 
                 // If the stop event, stop looping and exit
-                case WAIT_OBJECT_0:
-                    continueProcessing = false;
-                    continue;
+            case WAIT_OBJECT_0:
+                continueProcessing = false;
+                continue;
 
-                case WAIT_OBJECT_0 + 1:
-                    m_pNuiSensor->NuiImageStreamGetNextFrame(
-                        m_pDepthStreamHandle,
-                        0,
-                        &imageFrame );
-                    m_pNuiSensor->NuiImageStreamReleaseFrame(m_pDepthStreamHandle, &imageFrame);
-                    break;
+            case WAIT_OBJECT_0 + 1:
+                m_pNuiSensor->NuiImageStreamGetNextFrame(
+                    m_pDepthStreamHandle,
+                    0,
+                    &imageFrame );
+                m_pNuiSensor->NuiImageStreamReleaseFrame(m_pDepthStreamHandle, &imageFrame);
+                break;
 
-                case WAIT_OBJECT_0 + 2:
-                    m_pNuiSensor->NuiImageStreamGetNextFrame(
-                        m_pVideoStreamHandle,
-                        0,
-                        &imageFrame );
-                    m_pNuiSensor->NuiImageStreamReleaseFrame(m_pVideoStreamHandle, &imageFrame);
-                    break;
+            case WAIT_OBJECT_0 + 2:
+                m_pNuiSensor->NuiImageStreamGetNextFrame(
+                    m_pVideoStreamHandle,
+                    0,
+                    &imageFrame );
+                m_pNuiSensor->NuiImageStreamReleaseFrame(m_pVideoStreamHandle, &imageFrame);
+                break;
 
-                case WAIT_OBJECT_0 + 3:
-                    Nui_GotSkeletonAlert( );
-                    break;
+            case WAIT_OBJECT_0 + 3:
+                Nui_GotSkeletonAlert( );
+                break;
             }
         }
     });
@@ -525,8 +471,8 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
             m_lastcentery = m_centery;
         }
     }
-    
-    
+
+
     if(right_stretched != m_right_stretched)
     {
         m_right_stretched = right_stretched;

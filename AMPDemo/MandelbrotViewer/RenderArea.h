@@ -8,20 +8,20 @@
 #include <ppl.h>
 
 class RenderAreaMessageHandler : 
-				   public IInitializable,
-                   public Hilo::WindowApiHelpers::WindowMessageHandler
+    public IInitializable,
+    public Hilo::WindowApiHelpers::WindowMessageHandler
 {
 public:
-	RenderAreaMessageHandler(void);
-	~RenderAreaMessageHandler(void);
+    RenderAreaMessageHandler(void);
+    ~RenderAreaMessageHandler(void);
 
 protected:
-	 // IInitiliazable
+    // IInitiliazable
     HRESULT __stdcall Initialize();
 
     // WindowMessageHandler Events
     HRESULT OnCreate();
-	HRESULT OnDestroy();
+    HRESULT OnDestroy();
     HRESULT OnEraseBackground();
     HRESULT OnRender();
     HRESULT OnSize(unsigned int width, unsigned int height);
@@ -32,7 +32,7 @@ protected:
     HRESULT OnMouseWheel(D2D1_POINT_2F mousePosition, short delta, int keys);
     HRESULT OnKeyDown(unsigned int vKey);
 
-	bool QueryInterfaceHelper(const IID &iid, void **object)
+    bool QueryInterfaceHelper(const IID &iid, void **object)
     {
         return 
             CastHelper<IInitializable>::CastTo(iid, this, object) ||
@@ -40,9 +40,9 @@ protected:
     }
 
 private:
-	ComPtr<ID2D1Factory> m_d2dFactory;
+    ComPtr<ID2D1Factory> m_d2dFactory;
     ComPtr<ID2D1HwndRenderTarget> m_renderTarget;
-	HANDLE m_pDepthStreamHandle;
+    HANDLE m_pDepthStreamHandle;
     HANDLE m_pVideoStreamHandle;
 
     HANDLE m_hNextSkeletonEvent;
@@ -52,17 +52,19 @@ private:
 
     Concurrency::task_group tasks;
 
-	//mouse control
-	double m_centerx;
-	double m_centery;
-	double m_lastcenterx;
-	double m_lastcentery;
-	double m_scale;
-	bool m_mousepressed;
-	D2D1_POINT_2F m_mousepressedpos;
+    bool m_useDouble;
 
-	//kinect control
-	ComPtr<INuiSensor> m_pNuiSensor;
+    //mouse control
+    double m_centerx;
+    double m_centery;
+    double m_lastcenterx;
+    double m_lastcentery;
+    double m_scale;
+    bool m_mousepressed;
+    D2D1_POINT_2F m_mousepressedpos;
+
+    //kinect control
+    ComPtr<INuiSensor> m_pNuiSensor;
 
     bool m_left_stretched;
     bool m_right_stretched;
@@ -71,7 +73,7 @@ private:
     bool m_resizing;
     double m_lastscale;
 
-	HRESULT Nui_Init();
+    HRESULT Nui_Init();
     void Nui_GotSkeletonAlert();
 };
 
