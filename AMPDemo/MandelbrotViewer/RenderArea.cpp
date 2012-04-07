@@ -369,7 +369,7 @@ HRESULT RenderAreaMessageHandler::Nui_Init()
             case WAIT_TIMEOUT:
                 continue;
 
-                // If the stop event, stop looping and exit
+            // If the stop event, stop looping and exit
             case WAIT_OBJECT_0:
                 continueProcessing = false;
                 continue;
