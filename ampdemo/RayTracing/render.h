@@ -5,123 +5,30 @@
 #include "ampvectors.h"
 #include "raycommon.h"
 
-template <typename fp_t>
-class color
+template<typename fp_t>
+class material_storage
 {
 public:
-	fp_t r;
-	fp_t g;
-	fp_t b;
-
-	explicit color(fp_t r, fp_t g, fp_t b) restrict(cpu, amp) : r(r), g(g), b(b) {}
-	color(const color& other) restrict(cpu, amp) : r(other.r), g(other.g), b(other.b) {}
-
-	color operator+(const color& c) const restrict(cpu, amp)
+	material_storage() restrict(cpu, amp)
 	{
-		return color(r + c.r, g + c.g, b + c.b);
+		new(materials + 0) phong<fp_t>(color<fp_t>::red(), color<fp_t>::white(), 16.0f, 0.25f);
+		new(materials + 1) phong<fp_t>(color<fp_t>::blue(), color<fp_t>::white(), 16.0f, 0.25f);
+		new(materials + 2) checker<fp_t>(5.0f, 0.25f);
 	}
 
-	color operator*(fp_t s) const restrict(cpu, amp)
+	color<fp_t> sample(int material_id, const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal) const restrict(cpu, amp)
 	{
-		return color(r * s, g * s, b * s);
+		const material_value* m = &materials[material_id];
+
+		const material* p = reinterpret_cast<const material*>(m);
+		return p->sample(ray, position, normal);
 	}
 
-	color operator*(const color& c) const restrict(cpu, amp)
+	struct material_value
 	{
-		return color(r * c.r, g * c.g, b * c.b);
-	}
-
-	static color black() { return color(0.0f, 0.0f, 0.0f); }
-	static color white() { return color(1.0f, 1.0f, 1.0f); }
-	static color red() { return color(1.0f, 0.0f, 0.0f); }
-	static color green() { return color(0.0f, 1.0f, 0.0f); }
-	static color blue() { return color(0.0f, 0.0f, 1.0f); }
+		int values[8];
+	} materials[3];
 };
-
-class material
-{
-public:
-	enum material_type
-	{
-		material_checker,
-		material_phong
-	};
-
-	template<typename fp_t> 
-	color<fp_t> sample(ray<fp_t> ray, vector3<fp_t> position, vector3<fp_t> normal) const restrict(cpu, amp)
-	{
-
-	}
-protected:
-	explicit material(int type) restrict(cpu, amp) : type(type) {}
-
-private:
-	int type;
-
-};
-
-template <typename fp_t>
-class checker : public material
-{
-public:
-	checker(fp_t scale, fp_t reflectiveness) restrict(cpu, amp) : material(material_checker), scale(scale), reflectiveness(reflectiveness) {}
-
-	color<fp_t> sample_impl(ray<fp_t> ray, vector3<fp_t> position, vector3<fp_t> normal)const restrict(cpu, amp)
-	{
-
-	}
-private:
-	fp_t scale;
-	fp_t reflectiveness;
-};
-
-
-template <typename fp_t>
-class sphere
-{
-public:
-	vector3<fp_t> center;
-	fp_t radius;
-
-	explicit sphere(const vector3<fp_t>& center, fp_t radius) restrict(cpu, amp) : center(center), radius(radius) { init(); }
-	sphere(const sphere& other) restrict(cpu, amp) : center(other.center), radius(other.radius) { init(); }
-
-	intersect_result<fp_t> intersect(const ray<fp_t>& ray) const restrict(amp)
-	{
-		vector3<fp_t> v = ray.origin - center;
-		fp_t a0 = v.sqr_length() - sqr_radius;
-		fp_t d_dot_v = ray.direction.dot(v);
-
-		if (d_dot_v <= 0 )
-		{
-			fp_t discr = d_dot_v * d_dot_v - a0;
-			fp_t distance = -d_dot_v - math_helper<fp_t>::sqrt(discr);
-			vector3<fp_t> position(ray.get_point(distance));
-
-			if (discr >= 0)
-			{
-				return intersect_result<fp_t>(
-					true, 
-					0, 
-					distance,
-					position,
-					(position - center).normalize()
-					);
-
-			}
-		}
-
-		return intersect_result<fp_t>();
-	}
-
-private:
-	fp_t sqr_radius;
-	void init()
-	{
-		sqr_radius = radius * radius;
-	}
-};
-
 
 
 template <typename fp_t>
@@ -203,6 +110,52 @@ void render_normal(const Concurrency::array_view<unsigned int, 2>& result)
 			r = static_cast<unsigned int>((ir.normal.x + 1) * 128);
 			g = static_cast<unsigned int>((ir.normal.y + 1) * 128);
 			b = static_cast<unsigned int>((ir.normal.z + 1) * 128);
+		}
+
+		result[idx] = 0xff000000 | (r << 16) | (g << 8) | b;
+	});
+}
+
+template <typename fp_t>
+void render_material(const Concurrency::array_view<unsigned int, 2>& result)
+{
+	using namespace Concurrency;
+
+	sphere<fp_t> scene(vector3<fp_t>(0, 10, -10), 10);
+	perspective_camera<fp_t> camera(vector3<fp_t>(0, 10, 10), vector3<fp_t>(0, 0, -1), vector3<fp_t>(0, 1, 0), 90);
+
+	//phong<fp_t> m0(color<fp_t>::red(), color<fp_t>::white(), 16.0f, 0.25f);
+	//checker<fp_t> m1(5.0f, 0.25f);
+
+	const int width = result.extent[1];
+	const int height = result.extent[0];
+
+	const int xshift = (width - 640) / 2;
+	const int yshift = (height - 640) / 2;
+
+	material_storage<fp_t> t;
+
+	parallel_for_each(result.extent, [=](index<2> idx) restrict(amp)
+	{
+		const int x = idx[1];
+		const int y = idx[0];
+
+		fp_t sy = 1.0f - static_cast<fp_t>(y - yshift) / 640 ;
+		fp_t sx = static_cast<fp_t>(x - xshift) / 640;
+
+		ray<fp_t> ray(camera.generate_ray(sx, sy));
+		intersect_result<fp_t> ir = scene.intersect(ray);
+
+		unsigned int r = 0;
+		unsigned int g = 0;
+		unsigned int b = 0;
+
+		if (ir.is_hit)
+		{
+			color<fp_t> color(t.sample(ir.material, ray, ir.position, ir.normal));
+			r = static_cast<unsigned int>(direct3d::saturate(color.r) * 255);
+			g = static_cast<unsigned int>(direct3d::saturate(color.g) * 255);
+			b = static_cast<unsigned int>(direct3d::saturate(color.b) * 255);
 		}
 
 		result[idx] = 0xff000000 | (r << 16) | (g << 8) | b;

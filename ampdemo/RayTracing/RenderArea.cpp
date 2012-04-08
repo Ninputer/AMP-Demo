@@ -108,8 +108,8 @@ HRESULT RenderAreaMessageHandler::OnRender()
         std::vector<unsigned int> data(width * height);
 
         array_view<unsigned int, 2> arrayview(height, width, data);
-
-		render_depth<float>(arrayview);
+		arrayview.discard_data();
+		render_material<float>(arrayview);
 
         arrayview.synchronize();
 
