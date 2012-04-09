@@ -105,19 +105,21 @@ HRESULT RenderAreaMessageHandler::OnRender()
         double dx = d * width / 640;
         double dy = d * height / 640;
 
-        std::vector<unsigned int> data(width * height);
+		int aa_factor = 2;
 
-        array_view<unsigned int, 2> arrayview(height, width, data);
+        std::vector<unsigned int> data(width * height * aa_factor * aa_factor);
+
+        array_view<unsigned int, 2> arrayview(height * aa_factor, width * aa_factor, data);
 		arrayview.discard_data();
-		render_material<float>(arrayview);
+		render_reflection<float>(arrayview, aa_factor);
 
         arrayview.synchronize();
 
         ComPtr<ID2D1Bitmap> bitmap;
         hr = m_renderTarget->CreateBitmap(
-            D2D1::SizeU(width, height),
+            D2D1::SizeU(width * aa_factor, height * aa_factor),
             static_cast<void*>(data.data()),
-            width * 4,
+            width * 4 * aa_factor,
             D2D1::BitmapProperties(
             D2D1::PixelFormat(
             DXGI_FORMAT_B8G8R8A8_UNORM,

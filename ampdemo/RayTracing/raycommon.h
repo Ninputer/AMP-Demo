@@ -98,6 +98,7 @@ public:
 	static color blue() restrict(cpu, amp) { return color(0.0f, 0.0f, 1.0f); }
 };
 
+template <typename fp_t>
 class material
 {
 public:
@@ -106,6 +107,7 @@ public:
 		material_checker,
 		material_phong
 	};
+	fp_t reflectiveness;
 
 	template<typename fp_t> 
 	color<fp_t> sample(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal) const restrict(cpu, amp)
@@ -121,7 +123,7 @@ public:
 		}
 	}
 protected:
-	explicit material(int type) restrict(cpu, amp) : type(type) {}
+	explicit material(int type, fp_t reflectiveness) restrict(cpu, amp) : type(type), reflectiveness(reflectiveness) {}
 
 private:
 	int type;
@@ -129,10 +131,10 @@ private:
 };
 
 template <typename fp_t>
-class checker : public material
+class checker : public material<fp_t>
 {
 public:
-	checker(fp_t scale, fp_t reflectiveness) restrict(cpu, amp) : material(material_checker), scale(scale), reflectiveness(reflectiveness) {}
+	checker(fp_t scale, fp_t reflectiveness) restrict(cpu, amp) : material(material_checker, reflectiveness), scale(scale) {}
 
 	color<fp_t> sample_impl(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal)const restrict(cpu, amp)
 	{
@@ -142,15 +144,14 @@ public:
 	}
 private:
 	fp_t scale;
-	fp_t reflectiveness;
 };
 
 template <typename fp_t>
-class phong : public material
+class phong : public material<fp_t>
 {
 public:
 	phong(color<fp_t> diffuse, color<fp_t> specular, fp_t shininess, fp_t reflectiveness)
-		: material(material_phong), diffuse(diffuse), specular(specular), shininess(shininess), reflectiveness(reflectiveness) {}
+		: material(material_phong, reflectiveness), diffuse(diffuse), specular(specular), shininess(shininess) {}
 
 	color<fp_t> sample_impl(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal)const restrict(cpu, amp)
 	{
@@ -171,5 +172,4 @@ private:
 	color<fp_t> diffuse;
 	color<fp_t> specular;
 	fp_t shininess;
-	fp_t reflectiveness;
 };
