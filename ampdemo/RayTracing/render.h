@@ -4,16 +4,24 @@
 #include "amp_math.h"
 #include "ampvectors.h"
 #include "raycommon.h"
+#include "geometry.h"
+#include <limits>
 
 template<typename fp_t>
 class material_storage
 {
 public:
-	material_storage() restrict(cpu, amp)
+	enum
+	{
+		material_max_size = 16,
+		material_count = 3
+	};
+
+	material_storage() restrict(cpu)
 	{
 		new(materials + 0) phong<fp_t>(color<fp_t>::red(), color<fp_t>::white(), 16.0f, 0.25f);
 		new(materials + 1) phong<fp_t>(color<fp_t>::blue(), color<fp_t>::white(), 16.0f, 0.25f);
-		new(materials + 2) checker<fp_t>(5.0f, 0.25f);
+		new(materials + 2) checker<fp_t>(0.1f, 0.25f);
 	}
 
 	color<fp_t> sample(int material_id, const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal) const restrict(cpu, amp)
@@ -24,12 +32,58 @@ public:
 		return p->sample(ray, position, normal);
 	}
 
+private:
 	struct material_value
 	{
-		int values[8];
-	} materials[3];
+		int values[material_max_size];
+	} materials[material_count];
 };
 
+template<typename fp_t>
+class scene_storage
+{
+public:
+	enum
+	{
+		geometry_max_size = 16,
+		geometry_count = 3
+	};
+
+	scene_storage() restrict(cpu)
+	{
+		new(geometries + 2) plane<fp_t>(vector3<fp_t>(0.0f, 1.0f, 0.0f), 0.0f, 2);
+		new(geometries + 0) sphere<fp_t>(vector3<fp_t>(-10.0f, 10.0f, -10.0f), 10.0f, 0);
+		new(geometries + 1) sphere<fp_t>(vector3<fp_t>(10.0f, 10.0f, -10.0f), 10.0f, 1);
+	}
+
+	intersect_result<fp_t> intersect(const ray<fp_t>& ray) const restrict(cpu, amp)
+	{
+		fp_t z = 0.0f;
+		fp_t min_dist = 1.0f / z;
+		intersect_result<fp_t> min_result;
+
+		for (int i = 0; i < geometry_count; i++)
+		{
+			const geometry_object* o = &geometries[i];
+			const geometry* g = reinterpret_cast<const geometry*>(o);
+
+			intersect_result<fp_t> result(g->intersect(ray));
+
+			if (result.is_hit && result.distance < min_dist)
+			{
+				min_dist = result.distance;
+				min_result = result;
+			}
+		}
+
+		return min_result;
+	}
+private:
+	struct geometry_object
+	{
+		int values[geometry_max_size];
+	} geometries[geometry_count];
+};
 
 template <typename fp_t>
 void render_depth(const Concurrency::array_view<unsigned int, 2>& result)
@@ -121,11 +175,8 @@ void render_material(const Concurrency::array_view<unsigned int, 2>& result)
 {
 	using namespace Concurrency;
 
-	sphere<fp_t> scene(vector3<fp_t>(0, 10, -10), 10);
-	perspective_camera<fp_t> camera(vector3<fp_t>(0, 10, 10), vector3<fp_t>(0, 0, -1), vector3<fp_t>(0, 1, 0), 90);
-
-	//phong<fp_t> m0(color<fp_t>::red(), color<fp_t>::white(), 16.0f, 0.25f);
-	//checker<fp_t> m1(5.0f, 0.25f);
+	scene_storage<fp_t> scene;
+	perspective_camera<fp_t> camera(vector3<fp_t>(0, 5, 15), vector3<fp_t>(0, 0, -1), vector3<fp_t>(0, 1, 0), 90);
 
 	const int width = result.extent[1];
 	const int height = result.extent[0];

@@ -98,7 +98,6 @@
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="mandelbrot.cpp" />
     <ClCompile Include="MandelbrotViewer.cpp" />
     <ClCompile Include="MandelbrotViewerApplication.cpp" />
     <ClCompile Include="RenderArea.cpp" />

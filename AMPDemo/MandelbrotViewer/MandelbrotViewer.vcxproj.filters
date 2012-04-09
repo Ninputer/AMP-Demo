@@ -44,9 +44,6 @@
     <ClCompile Include="MandelbrotViewerApplication.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="mandelbrot.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="RenderArea.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

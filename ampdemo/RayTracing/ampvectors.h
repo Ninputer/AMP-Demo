@@ -23,12 +23,12 @@ public:
 
 	fp_t length() const restrict(cpu, amp)
 	{
-		return math_helper<fp_t>::sqrt(sqr_length());
+		return gpu::sqrt(sqr_length());
 	}
 
 	vector3 normalize() const restrict(cpu, amp)
 	{
-		fp_t inv = math_helper<fp_t>::rsqrt(sqr_length());
+		fp_t inv = gpu::rsqrt(sqr_length());
 
 		return vector3(inv * x, inv * y, inv * z);
 	}

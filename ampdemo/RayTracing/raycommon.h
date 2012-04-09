@@ -53,7 +53,7 @@ public:
 	{
 		right = front.cross(ref_up);
 		up = right.cross(front);
-		fov_scale = math_helper<fp_t>::tan(fov * 0.5f * 3.141593f / 180.0f) * 2.0f;
+		fov_scale = gpu::tan(fov * 0.5f * 3.141593f / 180.0f) * 2.0f;
 	}
 
 	ray<fp_t> generate_ray(fp_t x, fp_t y) const restrict(cpu, amp)
@@ -108,7 +108,7 @@ public:
 	};
 
 	template<typename fp_t> 
-	color<fp_t> sample(ray<fp_t> ray, vector3<fp_t> position, vector3<fp_t> normal) const restrict(cpu, amp)
+	color<fp_t> sample(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal) const restrict(cpu, amp)
 	{
 		switch (type)
 		{
@@ -134,9 +134,9 @@ class checker : public material
 public:
 	checker(fp_t scale, fp_t reflectiveness) restrict(cpu, amp) : material(material_checker), scale(scale), reflectiveness(reflectiveness) {}
 
-	color<fp_t> sample_impl(ray<fp_t> ray, vector3<fp_t> position, vector3<fp_t> normal)const restrict(cpu, amp)
+	color<fp_t> sample_impl(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal)const restrict(cpu, amp)
 	{
-		fp_t r = math_helper<fp_t>::fabs(math_helper<fp_t>::floor(position.x * scale) + math_helper<fp_t>::floor(position.z * scale));
+		fp_t r = gpu::fabs(gpu::floor(position.x * scale) + gpu::floor(position.z * scale));
 
 		return (static_cast<int>(r) % 2) < 1 ? color<fp_t>::black() : color<fp_t>::white();
 	}
@@ -152,7 +152,7 @@ public:
 	phong(color<fp_t> diffuse, color<fp_t> specular, fp_t shininess, fp_t reflectiveness)
 		: material(material_phong), diffuse(diffuse), specular(specular), shininess(shininess), reflectiveness(reflectiveness) {}
 
-	color<fp_t> sample_impl(ray<fp_t> ray, vector3<fp_t> position, vector3<fp_t> normal)const restrict(cpu, amp)
+	color<fp_t> sample_impl(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal)const restrict(cpu, amp)
 	{
 		vector3<fp_t> light_dir(0.5773503f, 0.5773503f, 0.5773503f);
 		color<fp_t> light_color(color<fp_t>::white());
@@ -161,8 +161,8 @@ public:
 		vector3<fp_t> h((light_dir - ray.direction).normalize());
 		fp_t n_dot_h = normal.dot(h);
 		
-		color<fp_t> diffuse_term = diffuse * math_helper<fp_t>::fmax(n_dot_l, 0.0f);
-		color<fp_t> specular_term = specular * math_helper<fp_t>::pow(math_helper<fp_t>::fmax(n_dot_h, 0.0f), shininess);
+		color<fp_t> diffuse_term = diffuse * gpu::fmax(n_dot_l, 0.0f);
+		color<fp_t> specular_term = specular * gpu::pow(gpu::fmax(n_dot_h, 0.0f), shininess);
 
 		return light_color * (diffuse_term + specular_term);
 	}
@@ -172,50 +172,4 @@ private:
 	color<fp_t> specular;
 	fp_t shininess;
 	fp_t reflectiveness;
-};
-
-template <typename fp_t>
-class sphere
-{
-public:
-	vector3<fp_t> center;
-	fp_t radius;
-
-	explicit sphere(const vector3<fp_t>& center, fp_t radius) restrict(cpu, amp) : center(center), radius(radius) { init(); }
-	sphere(const sphere& other) restrict(cpu, amp) : center(other.center), radius(other.radius) { init(); }
-
-	intersect_result<fp_t> intersect(const ray<fp_t>& ray) const restrict(amp)
-	{
-		vector3<fp_t> v = ray.origin - center;
-		fp_t a0 = v.sqr_length() - sqr_radius;
-		fp_t d_dot_v = ray.direction.dot(v);
-
-		if (d_dot_v <= 0 )
-		{
-			fp_t discr = d_dot_v * d_dot_v - a0;
-			fp_t distance = -d_dot_v - math_helper<fp_t>::sqrt(discr);
-			vector3<fp_t> position(ray.get_point(distance));
-
-			if (discr >= 0)
-			{
-				return intersect_result<fp_t>(
-					true, 
-					0, 
-					distance,
-					position,
-					(position - center).normalize()
-					);
-
-			}
-		}
-
-		return intersect_result<fp_t>();
-	}
-
-private:
-	fp_t sqr_radius;
-	void init()
-	{
-		sqr_radius = radius * radius;
-	}
 };
