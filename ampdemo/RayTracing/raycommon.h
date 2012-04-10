@@ -53,7 +53,7 @@ public:
 	{
 		right = front.cross(ref_up);
 		up = right.cross(front);
-		fov_scale = gpu::tan(fov * 0.5f * 3.141593f / 180.0f) * 2.0f;
+		fov_scale = gpu::tan(fov * 0.5f * 3.1415926f / 180.0f) * 2.0f;
 	}
 
 	ray<fp_t> generate_ray(fp_t x, fp_t y) const restrict(cpu, amp)

@@ -9,11 +9,11 @@ RenderAreaMessageHandler::RenderAreaMessageHandler(void)
     m_pVideoStreamHandle(nullptr),
     m_hNextDepthFrameEvent(nullptr),
     m_hNextColorFrameEvent(nullptr),
-    m_centerx(0.0), 
-    m_centery(0.0), 
-    m_lastcenterx(0.0), 
-    m_lastcentery(0.0), 
-    m_scale(0.5), 
+    m_phi(0.0f), 
+    m_theta(0.0f), 
+    m_lastphi(0.0f), 
+    m_lasttheta(0.0f), 
+    m_eyedist(60.0f), 
     m_mousepressed(false),
     m_useDouble(false)
 {
@@ -97,13 +97,8 @@ HRESULT RenderAreaMessageHandler::OnRender()
 
     if (SUCCEEDED(hr))
     {
-        double d = 1 / m_scale;
-
         const unsigned int width = rect.right;
         const unsigned int height = rect.bottom;
-
-        double dx = d * width / 640;
-        double dy = d * height / 640;
 
 		int aa_factor = 2;
 
@@ -111,7 +106,7 @@ HRESULT RenderAreaMessageHandler::OnRender()
 
         array_view<unsigned int, 2> arrayview(height * aa_factor, width * aa_factor, data);
 		arrayview.discard_data();
-		render_reflection<float>(arrayview, aa_factor);
+		render_reflection<float>(arrayview, m_phi, m_theta, m_eyedist, aa_factor);
 
         arrayview.synchronize();
 
@@ -165,8 +160,8 @@ HRESULT RenderAreaMessageHandler::OnLeftMouseButtonDown(D2D1_POINT_2F mousePosit
         m_mousepressed = true;
         m_mousepressedpos = mousePosition;
 
-        m_lastcenterx = m_centerx;
-        m_lastcentery = m_centery;
+        m_lastphi = m_phi;
+        m_lasttheta = m_theta;
     }
 
     return hr;
@@ -196,11 +191,11 @@ HRESULT RenderAreaMessageHandler::OnMouseMove(D2D1_POINT_2F mousePosition)
     HRESULT hr = S_OK;
     if (m_mousepressed)
     {
-        double dx = mousePosition.x - m_mousepressedpos.x;
-        double dy = -mousePosition.y + m_mousepressedpos.y;
+        float dx = mousePosition.x - m_mousepressedpos.x;
+        float dy = -mousePosition.y + m_mousepressedpos.y;
 
-        m_centerx = m_lastcenterx - dx / (320 * m_scale);
-        m_centery = m_lastcentery - dy / (320 * m_scale);
+        m_phi = m_lastphi - dx / (7.11f);
+        m_theta = m_lasttheta - dy / (7.11f);
 
         ComPtr<IWindow> window;
         hr = GetWindow(&window);
@@ -222,11 +217,11 @@ HRESULT RenderAreaMessageHandler::OnMouseWheel(D2D1_POINT_2F mousePosition, shor
 {
     if (delta > 0)
     {
-        m_scale *= 1.2;
+        m_eyedist *= 1.1f;
     }
     else if (delta < 0)
     {
-        m_scale /= 1.2;
+        m_eyedist /= 1.1f;
     }
 
     ComPtr<IWindow> window;

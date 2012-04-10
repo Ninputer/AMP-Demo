@@ -60,8 +60,8 @@ public:
 	scene_storage() restrict(cpu)
 	{
 		new(geometries + 2) plane<fp_t>(vector3<fp_t>(0.0f, 1.0f, 0.0f), 0.0f, 2);
-		new(geometries + 0) sphere<fp_t>(vector3<fp_t>(-10.0f, 10.0f, -10.0f), 10.0f, 0);
-		new(geometries + 1) sphere<fp_t>(vector3<fp_t>(10.0f, 10.0f, -10.0f), 10.0f, 1);
+		new(geometries + 0) sphere<fp_t>(vector3<fp_t>(-15.0f, 15.0f, -10.0f), 15.0f, 0);
+		new(geometries + 1) sphere<fp_t>(vector3<fp_t>(12.0f, 10.0f, -10.0f), 10.0f, 1);
 	}
 
 	intersect_result<fp_t> intersect(const ray<fp_t>& ray) const restrict(cpu, amp)
@@ -262,12 +262,28 @@ void render_material(const Concurrency::array_view<unsigned int, 2>& result)
 }
 
 template <typename fp_t>
-void render_reflection(const Concurrency::array_view<unsigned int, 2>& result, int aa_factor)
+void render_reflection(const Concurrency::array_view<unsigned int, 2>& result, fp_t phi, fp_t theta, fp_t eyedist, int aa_factor)
 {
 	using namespace Concurrency;
 
+	fp_t r_theta = (theta - 85) * 3.1415926f / 180.0f;
+	fp_t r_phi = (270 - phi) * 3.1415926f / 180.0f;
+
+	fp_t r_theta1 = (theta + 5) * 3.1415926f / 180.0f;
+
+	fp_t cos_phi = cos(r_phi);
+	fp_t sin_phi = sin(r_phi);
+
+	fp_t px = sin(r_theta) * cos_phi;
+	fp_t pz = sin(r_theta) * sin_phi;
+	fp_t py = cos(r_theta);
+
+	fp_t ux = sin(r_theta1) * cos_phi;
+	fp_t uz = sin(r_theta1) * sin_phi;
+	fp_t uy = cos(r_theta1);
+
 	scene_storage<fp_t> scene;
-	perspective_camera<fp_t> camera(vector3<fp_t>(0, 5, 15), vector3<fp_t>(0, 0, -1), vector3<fp_t>(0, 1, 0), 90);
+	perspective_camera<fp_t> camera(vector3<fp_t>(px * eyedist, py * eyedist, pz * eyedist), vector3<fp_t>(-px, -py, -pz), vector3<fp_t>(ux, uy, uz), 46);
 
 	const int width = result.extent[1];
 	const int height = result.extent[0];

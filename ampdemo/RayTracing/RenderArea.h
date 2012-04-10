@@ -52,11 +52,11 @@ private:
     bool m_useDouble;
 
     //mouse control
-    double m_centerx;
-    double m_centery;
-    double m_lastcenterx;
-    double m_lastcentery;
-    double m_scale;
+    float m_phi;
+    float m_theta;
+    float m_lastphi;
+    float m_lasttheta;
+    float m_eyedist;
     bool m_mousepressed;
     D2D1_POINT_2F m_mousepressedpos;
 };
