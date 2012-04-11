@@ -266,10 +266,10 @@ void render_reflection(const Concurrency::array_view<unsigned int, 2>& result, f
 {
 	using namespace Concurrency;
 
-	fp_t r_theta = (theta - 85) * 3.1415926f / 180.0f;
-	fp_t r_phi = (270 - phi) * 3.1415926f / 180.0f;
+	fp_t r_theta = (theta) * 3.1415926f / 180.0f;
+	fp_t r_phi = (- phi) * 3.1415926f / 180.0f;
 
-	fp_t r_theta1 = (theta + 5) * 3.1415926f / 180.0f;
+	fp_t r_theta1 = (theta + 90) * 3.1415926f / 180.0f;
 
 	fp_t cos_phi = cos(r_phi);
 	fp_t sin_phi = sin(r_phi);

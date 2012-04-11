@@ -9,8 +9,8 @@ RenderAreaMessageHandler::RenderAreaMessageHandler(void)
     m_pVideoStreamHandle(nullptr),
     m_hNextDepthFrameEvent(nullptr),
     m_hNextColorFrameEvent(nullptr),
-    m_phi(0.0f), 
-    m_theta(0.0f), 
+    m_phi(-270.0f), 
+    m_theta(-85.0f), 
     m_lastphi(0.0f), 
     m_lasttheta(0.0f), 
     m_eyedist(60.0f), 
@@ -194,8 +194,8 @@ HRESULT RenderAreaMessageHandler::OnMouseMove(D2D1_POINT_2F mousePosition)
         float dx = mousePosition.x - m_mousepressedpos.x;
         float dy = -mousePosition.y + m_mousepressedpos.y;
 
-        m_phi = m_lastphi - dx / (7.11f);
-        m_theta = m_lasttheta - dy / (7.11f);
+        m_phi = m_lastphi - dx / (3.55f);
+        m_theta = m_lasttheta - dy / (3.55f);
 
         ComPtr<IWindow> window;
         hr = GetWindow(&window);
