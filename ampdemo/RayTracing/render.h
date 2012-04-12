@@ -1,100 +1,9 @@
 #pragma once
 
-#include "amp.h"
-#include "amp_math.h"
-#include "ampvectors.h"
-#include "raycommon.h"
-#include "geometry.h"
-#include <limits>
-
-template<typename fp_t>
-class material_storage
-{
-public:
-	enum
-	{
-		material_max_size = 16,
-		material_count = 3
-	};
-
-	material_storage() restrict(cpu)
-	{
-		new(materials + 0) phong<fp_t>(color<fp_t>::red(), color<fp_t>::white(), 16.0f, 0.25f);
-		new(materials + 1) phong<fp_t>(color<fp_t>::blue(), color<fp_t>::white(), 16.0f, 0.25f);
-		new(materials + 2) checker<fp_t>(0.1f, 0.5f);
-	}
-
-	color<fp_t> sample(int material_id, const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal) const restrict(cpu, amp)
-	{
-		const material_value* m = &materials[material_id];
-
-		const material<fp_t>* p = reinterpret_cast<const material<fp_t>*>(m);
-		return p->sample(ray, position, normal);
-	}
-
-	fp_t get_reflectiveness(int material_id) const restrict(cpu, amp)
-	{
-		const material_value* m = &materials[material_id];
-
-		const material<fp_t>* p = reinterpret_cast<const material<fp_t>*>(m);
-		return p->reflectiveness;
-	}
-
-private:
-	struct material_value
-	{
-		fp_t values[material_max_size];
-	} materials[material_count];
-};
-
-template<typename fp_t>
-class scene_storage
-{
-public:
-	enum
-	{
-		geometry_max_size = 16,
-		geometry_count = 3
-	};
-
-	scene_storage() restrict(cpu)
-	{
-		new(geometries + 2) plane<fp_t>(vector3<fp_t>(0.0f, 1.0f, 0.0f), 0.0f, 2);
-		new(geometries + 0) sphere<fp_t>(vector3<fp_t>(-15.0f, 15.0f, -10.0f), 15.0f, 0);
-		new(geometries + 1) sphere<fp_t>(vector3<fp_t>(12.0f, 10.0f, -10.0f), 10.0f, 1);
-	}
-
-	intersect_result<fp_t> intersect(const ray<fp_t>& ray) const restrict(cpu, amp)
-	{
-		fp_t z = 0.0f;
-		fp_t min_dist = 1.0f / z;
-		intersect_result<fp_t> min_result;
-
-		for (int i = 0; i < geometry_count; i++)
-		{
-			const geometry_object* o = &geometries[i];
-			const geometry* g = reinterpret_cast<const geometry*>(o);
-
-			intersect_result<fp_t> result(g->intersect(ray));
-
-			if (result.is_hit && result.distance < min_dist)
-			{
-				min_dist = result.distance;
-				min_result = result;
-			}
-		}
-
-		return min_result;
-	}
-private:
-	struct geometry_object
-	{
-		fp_t values[geometry_max_size];
-	} geometries[geometry_count];
-};
+#include "material.h"
 
 template <typename fp_t>
-color<fp_t> reflection(ray<fp_t> i_ray, const scene_storage<fp_t>& scene, const material_storage<fp_t>& materials, int max_reflect) restrict(cpu, amp)
+color<fp_t> reflection(ray<fp_t> i_ray, const scene_storage<fp_t>& scene, const material_storage<fp_t>& materials, const point_light<fp_t>& light, int max_reflect) restrict(cpu, amp)
 {
 	color<fp_t> final_color(0.0f, 0.0f, 0.0f);
 	fp_t reflectiveness = 1.0f;
@@ -105,8 +14,10 @@ color<fp_t> reflection(ray<fp_t> i_ray, const scene_storage<fp_t>& scene, const 
 
 		if (r.is_hit)
 		{
+			light_sample<fp_t> ls(light.sample(scene, r.position));
+
 			fp_t ref_c = materials.get_reflectiveness(r.material);
-			color<fp_t> color(materials.sample(r.material, i_ray, r.position, r.normal));	
+			color<fp_t> color(materials.sample(r.material, i_ray, r.position, r.normal, ls));	
 
 			color = color * (1.0f - ref_c);
 			
@@ -284,6 +195,7 @@ void render_reflection(const Concurrency::array_view<unsigned int, 2>& result, f
 
 	scene_storage<fp_t> scene;
 	perspective_camera<fp_t> camera(vector3<fp_t>(px * eyedist, py * eyedist, pz * eyedist), vector3<fp_t>(-px, -py, -pz), vector3<fp_t>(ux, uy, uz), 46);
+	point_light<fp_t> light(color<fp_t>::white() * 1000.0f, vector3<fp_t>(20, 30, 10));
 
 	const int width = result.extent[1];
 	const int height = result.extent[0];
@@ -293,7 +205,7 @@ void render_reflection(const Concurrency::array_view<unsigned int, 2>& result, f
 	const int xshift = (width - edge) / 2;
 	const int yshift = (height - edge) / 2;
 
-	material_storage<fp_t> t;
+	material_storage<fp_t> materials;
 
 	parallel_for_each(result.extent, [=](index<2> idx) restrict(amp)
 	{
@@ -309,7 +221,7 @@ void render_reflection(const Concurrency::array_view<unsigned int, 2>& result, f
 		unsigned int g = 0;
 		unsigned int b = 0;
 
-		color<fp_t> color(reflection(ray, scene, t, 3));
+		color<fp_t> color(reflection(ray, scene, materials, light, 3));
 		r = static_cast<unsigned int>(direct3d::saturate(color.r) * 255);
 		g = static_cast<unsigned int>(direct3d::saturate(color.g) * 255);
 		b = static_cast<unsigned int>(direct3d::saturate(color.b) * 255);

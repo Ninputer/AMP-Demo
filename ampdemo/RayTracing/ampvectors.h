@@ -1,7 +1,5 @@
 #pragma once
 
-#include "amp.h"
-#include "amp_math.h"
 #include "ampmathhelper.h"
 
 template<typename fp_t>

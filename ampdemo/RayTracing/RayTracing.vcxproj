@@ -91,6 +91,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="ampmathhelper.h" />
+    <ClInclude Include="light.h" />
+    <ClInclude Include="material.h" />
     <ClInclude Include="raycommon.h" />
     <ClInclude Include="render.h" />
     <ClInclude Include="RayTracingApplication.h" />

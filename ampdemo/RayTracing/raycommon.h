@@ -1,7 +1,5 @@
 #pragma once
 
-#include <amp.h>
-#include <amp_math.h>
 #include "ampvectors.h"
 
 template <typename fp_t>
@@ -73,6 +71,7 @@ public:
 	fp_t g;
 	fp_t b;
 
+	color() restrict(cpu, amp) : r(0.0f), g(0.0f), b(0.0f) {}
 	explicit color(fp_t r, fp_t g, fp_t b) restrict(cpu, amp) : r(r), g(g), b(b) {}
 	color(const color& other) restrict(cpu, amp) : r(other.r), g(other.g), b(other.b) {}
 
@@ -98,78 +97,3 @@ public:
 	static color blue() restrict(cpu, amp) { return color(0.0f, 0.0f, 1.0f); }
 };
 
-template <typename fp_t>
-class material
-{
-public:
-	enum material_type
-	{
-		material_checker,
-		material_phong
-	};
-	fp_t reflectiveness;
-
-	template<typename fp_t> 
-	color<fp_t> sample(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal) const restrict(cpu, amp)
-	{
-		switch (type)
-		{
-		case material_checker:
-			return static_cast<const checker<fp_t>*>(this)->sample_impl(ray, position, normal);
-		case material_phong:
-			return static_cast<const phong<fp_t>*>(this)->sample_impl(ray, position, normal);
-		default:
-			return color<fp_t>::black();
-		}
-	}
-protected:
-	explicit material(int type, fp_t reflectiveness) restrict(cpu, amp) : type(type), reflectiveness(reflectiveness) {}
-
-private:
-	int type;
-
-};
-
-template <typename fp_t>
-class checker : public material<fp_t>
-{
-public:
-	checker(fp_t scale, fp_t reflectiveness) restrict(cpu, amp) : material(material_checker, reflectiveness), scale(scale) {}
-
-	color<fp_t> sample_impl(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal)const restrict(cpu, amp)
-	{
-		fp_t r = gpu::fabs(gpu::floor(position.x * scale) + gpu::floor(position.z * scale));
-
-		return (static_cast<int>(r) % 2) < 1 ? color<fp_t>::black() : color<fp_t>::white();
-	}
-private:
-	fp_t scale;
-};
-
-template <typename fp_t>
-class phong : public material<fp_t>
-{
-public:
-	phong(color<fp_t> diffuse, color<fp_t> specular, fp_t shininess, fp_t reflectiveness)
-		: material(material_phong, reflectiveness), diffuse(diffuse), specular(specular), shininess(shininess) {}
-
-	color<fp_t> sample_impl(const ray<fp_t>& ray, const vector3<fp_t>& position, const vector3<fp_t>& normal)const restrict(cpu, amp)
-	{
-		vector3<fp_t> light_dir(0.5773503f, 0.5773503f, 0.5773503f);
-		color<fp_t> light_color(color<fp_t>::white());
-
-		fp_t n_dot_l = normal.dot(light_dir);
-		vector3<fp_t> h((light_dir - ray.direction).normalize());
-		fp_t n_dot_h = normal.dot(h);
-		
-		color<fp_t> diffuse_term = diffuse * gpu::fmax(n_dot_l, 0.0f);
-		color<fp_t> specular_term = specular * gpu::pow(gpu::fmax(n_dot_h, 0.0f), shininess);
-
-		return light_color * (diffuse_term + specular_term);
-	}
-
-private:
-	color<fp_t> diffuse;
-	color<fp_t> specular;
-	fp_t shininess;
-};

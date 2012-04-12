@@ -1,7 +1,5 @@
 #pragma once
 
-#include <amp.h>
-#include <amp_math.h>
 #include "raycommon.h"
 
 class geometry
@@ -105,4 +103,50 @@ private:
 	{
 		position = normal * d;
 	}
+};
+
+template<typename fp_t>
+class scene_storage
+{
+public:
+	enum
+	{
+		geometry_max_size = 16,
+		geometry_count = 3
+	};
+
+	scene_storage() restrict(cpu)
+	{
+		new(geometries + 0) plane<fp_t>(vector3<fp_t>(0.0f, 1.0f, 0.0f), 0.0f, 2);
+		new(geometries + 1) sphere<fp_t>(vector3<fp_t>(-15.0f, 15.0f, -10.0f), 15.0f, 0);
+		new(geometries + 2) sphere<fp_t>(vector3<fp_t>(12.0f, 10.0f, -10.0f), 10.0f, 1);
+	}
+
+	intersect_result<fp_t> intersect(const ray<fp_t>& ray) const restrict(cpu, amp)
+	{
+		fp_t z = 0.0f;
+		fp_t min_dist = 1.0f / z;
+		intersect_result<fp_t> min_result;
+
+		for (int i = 0; i < geometry_count; i++)
+		{
+			const geometry_object* o = &geometries[i];
+			const geometry* g = reinterpret_cast<const geometry*>(o);
+
+			intersect_result<fp_t> result(g->intersect(ray));
+
+			if (result.is_hit && result.distance < min_dist)
+			{
+				min_dist = result.distance;
+				min_result = result;
+			}
+		}
+
+		return min_result;
+	}
+private:
+	struct geometry_object
+	{
+		fp_t values[geometry_max_size];
+	} geometries[geometry_count];
 };
