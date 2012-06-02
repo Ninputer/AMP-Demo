@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "RenderArea.h"
 #include "render.h"
+#include <sstream>
 
 RenderAreaMessageHandler::RenderAreaMessageHandler(void) 
     : 
@@ -100,15 +101,37 @@ HRESULT RenderAreaMessageHandler::OnRender()
         const unsigned int width = rect.right;
         const unsigned int height = rect.bottom;
 
-		int aa_factor = 2;
+        int aa_factor = 1;
 
         std::vector<unsigned int> data(width * height * aa_factor * aa_factor);
 
         array_view<unsigned int, 2> arrayview(height * aa_factor, width * aa_factor, data);
-		arrayview.discard_data();
-		render_reflection<float>(arrayview, m_phi, m_theta, m_eyedist, aa_factor);
+        arrayview.discard_data();
+
+        LARGE_INTEGER frequency, before, after;
+        QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&before);
+
+        render_reflection<float>(arrayview, m_phi, m_theta, m_eyedist, aa_factor);
 
         arrayview.synchronize();
+
+        QueryPerformanceCounter(&after);
+
+        double millisecond = (after.QuadPart - before.QuadPart) * 1000.0 / frequency.QuadPart; 
+
+        std::wstringstream msg;
+        msg << L"Ray Tracing Viewer: last frame render time ";
+        msg << millisecond;
+        msg << " ms";
+
+        HWND hParent;
+        hr = window->GetParentWindowHandle(&hParent);
+
+        if (SUCCEEDED(hr))
+        {
+            SetWindowText(hParent, msg.str().c_str());
+        }
 
         ComPtr<ID2D1Bitmap> bitmap;
         hr = m_renderTarget->CreateBitmap(

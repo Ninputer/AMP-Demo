@@ -71,7 +71,7 @@ public:
 
 private:
 	fp_t sqr_radius;
-	void init()
+	void init() restrict(cpu, amp)
 	{
 		sqr_radius = radius * radius;
 	}
@@ -99,7 +99,7 @@ public:
 	}
 private:
 	vector3<fp_t> position;
-	void init()
+	void init() restrict(cpu, amp)
 	{
 		position = normal * d;
 	}
