@@ -8,6 +8,9 @@ color<fp_t> reflection(ray<fp_t> i_ray, const scene_storage<fp_t>& scene, const 
 	color<fp_t> final_color(0.0f, 0.0f, 0.0f);
 	fp_t reflectiveness = 1.0f;
 
+    int last_material = -1;
+    vector3<fp_t> last_pos;
+    vector3<fp_t> last_normal;
 	for (int i = 0; i < max_reflect; i++)
 	{
 		intersect_result<fp_t> r(scene.intersect(i_ray));
@@ -19,9 +22,25 @@ color<fp_t> reflection(ray<fp_t> i_ray, const scene_storage<fp_t>& scene, const 
 			fp_t ref_c = materials.get_reflectiveness(r.material);
 			color<fp_t> color(materials.sample(r.material, i_ray, r.position, r.normal, ls));	
 
-			color = color * (1.0f - ref_c);
+            light_sample<fp_t> ref_ls(i_ray.direction.negate(), color * (1.0f - ref_c));
+
+            if (last_material >= 0)
+            {
+                ray<fp_t> ref_ray(r.position, i_ray.direction.negate());
+                ::color<fp_t> ref_color(materials.sample(last_material, ref_ray, last_pos, last_normal.negate(), ref_ls));
+
+                final_color = final_color + (ref_color * reflectiveness);
+            }
+            else
+            {
+                color = color * (1.0f - ref_c);
+                final_color = final_color + (color * reflectiveness);
+            }
+            
+			last_material = r.material;
+            last_pos = r.position;
+            last_normal = r.normal;
 			
-			final_color = final_color + (color * reflectiveness);
 			reflectiveness = reflectiveness * ref_c;
 
 			if (reflectiveness > 0.0f)
