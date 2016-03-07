@@ -4,7 +4,10 @@
 #include "WindowLayout.h"
 #include "WindowLayoutChildInterface.h"
 #include "WindowMessageHandlerImpl.h"
+#ifdef KINECT_CTRL
 #include "NuiApi.h"
+#pragma comment(lib, "Kinect10.lib")
+#endif
 #include <ppl.h>
 
 class RenderAreaMessageHandler : 
@@ -63,8 +66,10 @@ private:
     bool m_mousepressed;
     D2D1_POINT_2F m_mousepressedpos;
 
+#ifdef KINECT_CTRL
     //kinect control
     ComPtr<INuiSensor> m_pNuiSensor;
+#endif
 
     bool m_left_stretched;
     bool m_right_stretched;
@@ -73,7 +78,9 @@ private:
     bool m_resizing;
     double m_lastscale;
 
+#ifdef KINECT_CTRL
     HRESULT Nui_Init();
     void Nui_GotSkeletonAlert();
+#endif
 };
 

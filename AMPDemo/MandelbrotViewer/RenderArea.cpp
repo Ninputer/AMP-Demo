@@ -64,10 +64,12 @@ HRESULT RenderAreaMessageHandler::OnCreate()
             &m_renderTarget);
     }
 
+#ifdef KINECT_CTRL
     if (SUCCEEDED(hr))
     {
         hr = Nui_Init();
     }
+#endif
 
     Concurrency::accelerator default_acc;
 
@@ -85,10 +87,12 @@ HRESULT RenderAreaMessageHandler::OnDestroy()
 
     tasks.wait();
 
+#ifdef KINECT_CTRL
     if (m_pNuiSensor != nullptr)
     {
         m_pNuiSensor->NuiShutdown();
     }
+#endif
 
     return S_OK;
 }
@@ -291,6 +295,7 @@ HRESULT RenderAreaMessageHandler::Initialize()
     return hr;
 }
 
+#ifdef KINECT_CTRL
 HRESULT RenderAreaMessageHandler::Nui_Init()
 {
     ComPtr<IWindow> window;
@@ -399,7 +404,9 @@ HRESULT RenderAreaMessageHandler::Nui_Init()
 
     return hr;
 }
+#endif
 
+#ifdef KINECT_CTRL
 void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
 {
     NUI_SKELETON_FRAME SkeletonFrame = {0};
@@ -556,3 +563,4 @@ void RenderAreaMessageHandler::Nui_GotSkeletonAlert()
         window->RedrawWindow();
     }
 }
+#endif
